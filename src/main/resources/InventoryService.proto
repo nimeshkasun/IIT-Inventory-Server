@@ -1,13 +1,29 @@
 syntax = "proto3";
 option java_multiple_files = true;
-package ds.tutorial.communication.grpc.generated;
-message CheckBalanceRequest {
-  string accountId = 1;
+package iit.inv.grpc.generated;
+
+message CheckInventoryItemStockRequest {
+  int32 itemId = 1;
 }
-message CheckBalanceResponse {
-  double balance = 1;
+
+message CheckInventoryItemStockResponse {
+  int32 itemStock = 1;
 }
-service BalanceService {
-  rpc checkBalance(CheckBalanceRequest) returns
-      (CheckBalanceResponse);
+
+/*
+message AddNewInventoryItemRequest {
+  int32 inventoryId = 1;
+}
+
+message AddNewInventoryItemResponse {
+  int32 inventory = 1;
+}
+*/
+
+service InventoryService {
+  //Check inventory stock available
+  rpc checkInventoryItemStock(CheckInventoryItemStockRequest) returns (CheckInventoryItemStockResponse);
+
+  //Add inventory stock
+  //rpc addNewInventoryItem(AddNewInventoryItemRequest) returns (AddNewInventoryItemResponse);
 }
