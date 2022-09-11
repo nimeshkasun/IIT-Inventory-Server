@@ -35,6 +35,11 @@
             <artifactId>grpc-stub</artifactId>
             <version>1.36.0</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.zookeeper</groupId>
+            <artifactId>zookeeper</artifactId>
+            <version>3.6.2</version>
+        </dependency>
     </dependencies>
 
     <build>
