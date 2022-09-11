@@ -28,5 +28,10 @@ public class InventoryServer {
  * Commands:
  *
  * Clean Install: mvn clean install
+ *
+ * Open CMD/ PowerShell > Run:
+ * > cd IdeaProjects\IIT-Inventory-Server
  * Run Server: java -jar target/IIT-Inventory-Server-1.0-SNAPSHOT-jar-with-dependencies.jar
+ *
+ *
  * */

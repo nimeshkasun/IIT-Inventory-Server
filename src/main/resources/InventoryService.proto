@@ -3,7 +3,8 @@ option java_multiple_files = true;
 package iit.inv.grpc.generated;
 
 message CheckInventoryItemStockRequest {
-  int32 itemId = 1;
+  string lockName = 1;
+  int32 itemId = 2;
 }
 
 message CheckInventoryItemStockResponse {
