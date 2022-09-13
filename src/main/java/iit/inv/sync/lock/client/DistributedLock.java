@@ -7,6 +7,8 @@ import org.apache.zookeeper.Watcher;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -21,12 +23,14 @@ public class DistributedLock implements Watcher {
     CountDownLatch eventReceivedFlag;
     public static String zooKeeperUrl;
     private static String lockProcessPath = "/lp_";
+    private byte[] myDataBytes;
 
     public static void setZooKeeperURL(String url) {
         zooKeeperUrl = url;
     }
 
-    public DistributedLock(String lockName) throws IOException, KeeperException, InterruptedException {
+    public DistributedLock(String lockName, String data) throws IOException, KeeperException, InterruptedException {
+        myDataBytes = data.getBytes(StandardCharsets.UTF_8);
         this.lockPath = "/" + lockName;
         client = new ZooKeeperClient(zooKeeperUrl, 5000, this);
         startFlag.await();
@@ -37,13 +41,39 @@ public class DistributedLock implements Watcher {
     }
 
     private void createRootNode() throws InterruptedException, UnsupportedEncodingException, KeeperException {
-        lockPath = client.createNode(lockPath, false, CreateMode.PERSISTENT);
+        lockPath = client.createNode(lockPath, false, CreateMode.PERSISTENT, "".getBytes(StandardCharsets.UTF_8));
         System.out.println("Root node created at " + lockPath);
     }
 
     private void createChildNode() throws InterruptedException, UnsupportedEncodingException, KeeperException {
-        childPath = client.createNode(lockPath + lockProcessPath, false, CreateMode.EPHEMERAL_SEQUENTIAL);
+        childPath = client.createNode(lockPath + lockProcessPath, false, CreateMode.EPHEMERAL_SEQUENTIAL, myDataBytes);
         System.out.println("Child node created at " + childPath);
+    }
+
+    public byte[] getLockHolderData() throws KeeperException, InterruptedException {
+        String smallestNode = findSmallestNodePath();
+        return client.getData(smallestNode, true);
+    }
+
+    public List<byte[]> getOthersData() throws KeeperException, InterruptedException {
+        List<byte[]> result = new ArrayList<>();
+        List<String> childrenNodePaths = client.getChildrenNodePaths(lockPath);
+        for (String path : childrenNodePaths) {
+            path = lockPath + "/" + path;
+            if (!path.equals(childPath)) {
+                byte[] data = client.getData(path, false);
+                result.add(data);
+            }
+        }
+        return result;
+    }
+
+    public boolean tryAcquireLock() throws KeeperException, InterruptedException, UnsupportedEncodingException {
+        String smallestNode = findSmallestNodePath();
+        if (smallestNode.equals(childPath)) {
+            isAcquired = true;
+        }
+        return isAcquired;
     }
 
     public void acquireLock() throws KeeperException, InterruptedException {

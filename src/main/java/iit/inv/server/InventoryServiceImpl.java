@@ -26,7 +26,7 @@ public class InventoryServiceImpl extends InventoryServiceGrpc.InventoryServiceI
         String lockName = request.getLockName();
         System.out.println("Contesting to acquire lock " + lockName);
         try {
-            DistributedLock lock = new DistributedLock(lockName);
+            DistributedLock lock = new DistributedLock(lockName, "dummyData");
             System.out.println("lock: " + lock);
             lock.acquireLock();
             System.out.println("I Got the lock at " + getCurrentTimeStamp());
