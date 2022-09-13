@@ -19,10 +19,10 @@ public class DistributedLock implements Watcher {
     private String watchedNode;
     CountDownLatch startFlag = new CountDownLatch(1);
     CountDownLatch eventReceivedFlag;
-    public static String zooKeeperUrl ;
+    public static String zooKeeperUrl;
     private static String lockProcessPath = "/lp_";
 
-    public static void setZooKeeperURL(String url){
+    public static void setZooKeeperURL(String url) {
         zooKeeperUrl = url;
     }
 
@@ -92,8 +92,8 @@ public class DistributedLock implements Watcher {
                 startFlag.countDown();
             }
         }
-        if (Event.EventType.NodeDeleted.equals(type)){
-            if (watchedNode != null && eventReceivedFlag != null && event.getPath().equals(watchedNode)){
+        if (Event.EventType.NodeDeleted.equals(type)) {
+            if (watchedNode != null && eventReceivedFlag != null && event.getPath().equals(watchedNode)) {
                 System.out.println("NodeDelete event received. Trying to get the lock..");
                 eventReceivedFlag.countDown();
             }
