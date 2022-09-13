@@ -2,6 +2,9 @@ package iit.inv.server;
 
 import iit.inv.ns.NameServiceClient;
 import iit.inv.sync.lock.client.DistributedLock;
+import iit.inv.sync.lock.client.DistributedTx;
+import iit.inv.sync.lock.client.DistributedTxCoordinator;
+import iit.inv.sync.lock.client.DistributedTxParticipant;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import org.apache.zookeeper.KeeperException;
@@ -19,11 +22,25 @@ public class InventoryServer {
     private static AtomicBoolean isLeader = new AtomicBoolean(false);
     private static byte[] leaderData; // = Leader's IP and Port
     private Map<Integer, Integer> inventory = new HashMap();
-
+    private DistributedTx transaction;
+    private InventoryServiceImpl inventoryService;
 
     public InventoryServer(String host, int port) throws InterruptedException, IOException, KeeperException {
+        System.out.println("Server:Port " + host + ":" + port);
         this.serverPort = port;
         leaderLock = new DistributedLock("InventoryServerRWLock", buildServerData(host, port));
+
+        inventoryService = new InventoryServiceImpl(this);
+        transaction = new DistributedTxParticipant(inventoryService);
+    }
+
+    public DistributedTx getTransaction() {
+        return transaction;
+    }
+
+    public int getInventoryStock(Integer itemId) {
+        Integer value = inventory.get(itemId);
+        return (value != null) ? value : 0;
     }
 
     public void setInventoryStock(Integer itemId, Integer itemStock) {
@@ -31,9 +48,9 @@ public class InventoryServer {
         System.out.println("itemId itemStock: " + itemId + " " + itemStock);
     }
 
-    public int getInventoryStock(Integer itemId) {
-        Integer value = inventory.get(itemId);
-        return (value != null) ? value : 0;
+    public void orderInventoryStock(Integer itemIdForOrder, Integer itemStockForOrder) {
+        inventory.replace(itemIdForOrder, itemStockForOrder);
+        System.out.println("itemIdForOrder itemStockForOrder: " + itemIdForOrder + " " + itemStockForOrder);
     }
 
     public boolean isLeader() {
@@ -45,22 +62,25 @@ public class InventoryServer {
     }
 
     public static void main(String[] args) throws Exception {
-        DistributedLock.setZooKeeperURL("localhost:2181");
+        DistributedTx.setZooKeeperURL("localhost:2181");
 
         //serverPort = 11436;
+
         Random random = new Random();
-        serverPort = Integer.parseInt(String.format("%03d", random.nextInt(100000)));
+        serverPort = Integer.parseInt(String.format("%03d", random.nextInt(10000)));
+
+        DistributedLock.setZooKeeperURL("localhost:2181");
 
         InventoryServer inventoryServer = new InventoryServer("localhost", serverPort);
         inventoryServer.startServer();
 
     }
 
-    public void startServer(){
+    public void startServer() {
         Server server = ServerBuilder
                 .forPort(serverPort)
-                .addService(new InventoryServiceImpl(this))
-                /*.addService(new SetInventoryServiceImpl(this))*/
+                .addService(inventoryService)
+                /*.addService(new InventoryServiceImpl(this))*/
                 .build();
         try {
             server.start();
@@ -96,12 +116,19 @@ public class InventoryServer {
         return result;
     }
 
-    private static void tryToBeLeader() throws KeeperException, InterruptedException {
+    private  void tryToBeLeader() throws KeeperException, InterruptedException {
         Thread leaderCampaignThread = new Thread(new LeaderCampaignThread());
         leaderCampaignThread.start();
     }
 
-    static class LeaderCampaignThread implements Runnable {
+    private void beTheLeader() {
+        System.out.println("I got the leader lock. Now acting as primary");
+        isLeader.set(true);
+        transaction = new DistributedTxCoordinator(inventoryService);
+    }
+
+
+    class LeaderCampaignThread implements Runnable {
         private byte[] currentLeaderData = null;
 
         @Override
@@ -119,8 +146,11 @@ public class InventoryServer {
                     leader = leaderLock.tryAcquireLock();
                 }
                 System.out.println("I got the leader lock. Now acting as primary");
+                /* //Removed from Step 5
                 isLeader.set(true);
+                 */
                 currentLeaderData = null;
+                beTheLeader();
             } catch (Exception e) {
             }
         }

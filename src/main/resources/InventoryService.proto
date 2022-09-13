@@ -20,6 +20,18 @@ message SetInventoryItemStockResponse {
   bool status = 1;
 }
 
+message OrderInventoryItemRequest {
+  string lockName = 1;
+  int32 itemIdForOrder = 2;
+  int32 valueForOrder = 3;
+  bool isSentByPrimary = 4;
+}
+message OrderInventoryItemResponse {
+  bool status = 1;
+  int32 itemIdForOrder = 2;
+  int32 valueForOrder = 3;
+}
+
 
 
 service InventoryService {
@@ -29,5 +41,7 @@ service InventoryService {
   //Set inventory stock
   rpc setInventoryItemStock(SetInventoryItemStockRequest) returns (SetInventoryItemStockResponse);
 
+  //Order inventory item
+  rpc orderInventoryItem(OrderInventoryItemRequest) returns (OrderInventoryItemResponse);
 
 }
