@@ -6,25 +6,28 @@ message CheckInventoryItemStockRequest {
   string lockName = 1;
   int32 itemId = 2;
 }
-
 message CheckInventoryItemStockResponse {
   int32 itemStock = 1;
 }
 
-/*
-message AddNewInventoryItemRequest {
-  int32 inventoryId = 1;
+message SetInventoryItemStockRequest {
+  string lockName = 1;
+  int32 itemId = 2;
+  int32 value = 3;
+  bool isSentByPrimary = 4;
+}
+message SetInventoryItemStockResponse {
+  bool status = 1;
 }
 
-message AddNewInventoryItemResponse {
-  int32 inventory = 1;
-}
-*/
+
 
 service InventoryService {
   //Check inventory stock available
   rpc checkInventoryItemStock(CheckInventoryItemStockRequest) returns (CheckInventoryItemStockResponse);
 
-  //Add inventory stock
-  //rpc addNewInventoryItem(AddNewInventoryItemRequest) returns (AddNewInventoryItemResponse);
+  //Set inventory stock
+  rpc setInventoryItemStock(SetInventoryItemStockRequest) returns (SetInventoryItemStockResponse);
+
+
 }

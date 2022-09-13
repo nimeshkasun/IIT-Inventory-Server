@@ -1,27 +1,70 @@
 package iit.inv.server;
 
 import iit.inv.ns.NameServiceClient;
+import iit.inv.sync.lock.client.DistributedLock;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import org.apache.zookeeper.KeeperException;
 
-import java.util.Random;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.grpc.ServerBuilder.*;
 
 public class InventoryServer {
+    private static int serverPort;
     public static final String NAME_SERVICE_ADDRESS = "http://localhost:2379";
+    private static DistributedLock leaderLock;
+    private static AtomicBoolean isLeader = new AtomicBoolean(false);
+    private static byte[] leaderData; // = Leader's IP and Port
+    private Map<Integer, Integer> inventory = new HashMap();
+
+
+    public InventoryServer(String host, int port) throws InterruptedException, IOException, KeeperException {
+        this.serverPort = port;
+        leaderLock = new DistributedLock("InventoryServerRWLock", buildServerData(host, port));
+    }
+
+    public void setInventoryStock(Integer itemId, Integer itemStock) {
+        inventory.put(itemId, itemStock);
+        System.out.println("itemId itemStock: " + itemId + " " + itemStock);
+    }
+
+    public int getInventoryStock(Integer itemId) {
+        Integer value = inventory.get(itemId);
+        return (value != null) ? value : 0;
+    }
+
+    public boolean isLeader() {
+        return isLeader.get();
+    }
+
+    private static synchronized void setCurrentLeaderData(byte[] leaderData) {
+        InventoryServer.leaderData = leaderData;
+    }
 
     public static void main(String[] args) throws Exception {
-        //int serverPort = 11436;
-        Random random = new Random();
-        int serverPort = Integer.parseInt(String.format("%06d", random.nextInt(999999)));
+        DistributedLock.setZooKeeperURL("localhost:2181");
 
+        //serverPort = 11436;
+        Random random = new Random();
+        serverPort = Integer.parseInt(String.format("%03d", random.nextInt(100000)));
+
+        InventoryServer inventoryServer = new InventoryServer("localhost", serverPort);
+        inventoryServer.startServer();
+
+    }
+
+    public void startServer(){
         Server server = ServerBuilder
                 .forPort(serverPort)
-                .addService(new InventoryServiceImpl())
+                .addService(new InventoryServiceImpl(this))
+                /*.addService(new SetInventoryServiceImpl(this))*/
                 .build();
         try {
             server.start();
+            tryToBeLeader();
 
             NameServiceClient client = new NameServiceClient(NAME_SERVICE_ADDRESS);
             client.registerService("InventoryService", "127.0.0.1", serverPort, "tcp");
@@ -32,6 +75,58 @@ public class InventoryServer {
             System.out.println(e.getLocalizedMessage());
         }
     }
+
+    public static String buildServerData(String IP, int port) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(IP).append(":").append(port);
+        return builder.toString();
+    }
+
+    public synchronized String[] getCurrentLeaderData() {
+        return new String(leaderData).split(":");
+    }
+
+    public List<String[]> getOthersData() throws KeeperException, InterruptedException {
+        List<String[]> result = new ArrayList<>();
+        List<byte[]> othersData = leaderLock.getOthersData();
+        for (byte[] data : othersData) {
+            String[] dataStrings = new String(data).split(":");
+            result.add(dataStrings);
+        }
+        return result;
+    }
+
+    private static void tryToBeLeader() throws KeeperException, InterruptedException {
+        Thread leaderCampaignThread = new Thread(new LeaderCampaignThread());
+        leaderCampaignThread.start();
+    }
+
+    static class LeaderCampaignThread implements Runnable {
+        private byte[] currentLeaderData = null;
+
+        @Override
+        public void run() {
+            System.out.println("Starting the leader Campaign");
+            try {
+                boolean leader = leaderLock.tryAcquireLock();
+                while (!leader) {
+                    byte[] leaderData = leaderLock.getLockHolderData();
+                    if (currentLeaderData != leaderData) {
+                        currentLeaderData = leaderData;
+                        setCurrentLeaderData(currentLeaderData);
+                    }
+                    Thread.sleep(10000);
+                    leader = leaderLock.tryAcquireLock();
+                }
+                System.out.println("I got the leader lock. Now acting as primary");
+                isLeader.set(true);
+                currentLeaderData = null;
+            } catch (Exception e) {
+            }
+        }
+    }
+
+
 }
 
 
