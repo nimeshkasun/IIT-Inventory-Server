@@ -28,7 +28,7 @@ public class InventoryServiceImpl extends InventoryServiceGrpc.InventoryServiceI
     private Pair<Integer, Integer> tempDataHolder;
     private boolean transactionStatus = false;
 
-    private String updateType = "NEW";
+    private String updateType = "";
 
     public InventoryServiceImpl(InventoryServer server) {
         this.server = server;
@@ -137,13 +137,12 @@ public class InventoryServiceImpl extends InventoryServiceGrpc.InventoryServiceI
         responseObserver.onNext(response);
         responseObserver.onCompleted();*/
 
-
         Integer itemId = request.getItemId();
         Integer value = request.getValue();
         if (server.isLeader()){
             // Act as primary
             try {
-                System.out.println("Updating account balance as Primary");
+                System.out.println("Updating inventory stock as Primary");
                 startDistributedTx(itemId, value);
                 updateSecondaryServers(itemId, value);
                 System.out.println("going to perform");
@@ -153,13 +152,13 @@ public class InventoryServiceImpl extends InventoryServiceGrpc.InventoryServiceI
                     ((DistributedTxCoordinator)server.getTransaction()).sendGlobalAbort();
                 }
             } catch (Exception e) {
-                System.out.println("Error while updating the account balance" + e.getMessage());
+                System.out.println("Error while updating the inventory stock" + e.getMessage());
                 e.printStackTrace();
             }
         } else {
             // Act As Secondary
             if (request.getIsSentByPrimary()) {
-                System.out.println("Updating account balance on secondary, on Primary's command");
+                System.out.println("Updating inventory stock on secondary, on Primary's command");
                 startDistributedTx(itemId, value);
                 if (value != 0.0d) {
                     ((DistributedTxParticipant)server.getTransaction()).voteCommit();
@@ -196,8 +195,10 @@ public class InventoryServiceImpl extends InventoryServiceGrpc.InventoryServiceI
             Integer value = tempDataHolder.getValue();
             Integer currentStock = server.getInventoryStock(itemId);
 
+            System.out.println("Update Type: " + updateType);
             if(updateType == "NEW") {
-                Integer totalStock = currentStock + value;
+                Integer totalStock = (currentStock + value);
+                System.out.println("totalStock " + totalStock);
                 server.setInventoryStock(itemId, totalStock);
                 transactionStatus = true;
             }else {
@@ -205,7 +206,8 @@ public class InventoryServiceImpl extends InventoryServiceGrpc.InventoryServiceI
             }
 
             if(updateType == "ORDER" && value <= currentStock && currentStock != 0) {
-                Integer remainingStock = currentStock - value;
+                Integer remainingStock = (currentStock - value);
+                System.out.println("remainingStock " + remainingStock);
                 server.orderInventoryStock(itemId, remainingStock);
                 transactionStatus = true;
             }else if(updateType == "ORDER") {
@@ -269,6 +271,7 @@ public class InventoryServiceImpl extends InventoryServiceGrpc.InventoryServiceI
 
     @Override
     public void orderInventoryItem(iit.inv.grpc.generated.OrderInventoryItemRequest request, io.grpc.stub.StreamObserver<iit.inv.grpc.generated.OrderInventoryItemResponse> responseObserver) {
+
         updateType = "ORDER";
 
         Integer itemIdForOrder = request.getItemIdForOrder();
@@ -276,7 +279,7 @@ public class InventoryServiceImpl extends InventoryServiceGrpc.InventoryServiceI
         if (server.isLeader()){
             // Act as primary
             try {
-                System.out.println("Updating account balance as Primary");
+                System.out.println("Updating inventory stock as Primary");
                 startDistributedTx(itemIdForOrder, valueForOrder);
                 updateSecondaryServersForOrder(itemIdForOrder, valueForOrder);
                 System.out.println("going to perform");
@@ -286,13 +289,13 @@ public class InventoryServiceImpl extends InventoryServiceGrpc.InventoryServiceI
                     ((DistributedTxCoordinator)server.getTransaction()).sendGlobalAbort();
                 }
             } catch (Exception e) {
-                System.out.println("Error while updating the account balance" + e.getMessage());
+                System.out.println("Error while updating the inventory stock" + e.getMessage());
                 e.printStackTrace();
             }
         } else {
             // Act As Secondary
             if (request.getIsSentByPrimary()) {
-                System.out.println("Updating account balance on secondary, on Primary's command");
+                System.out.println("Updating inventory stock on secondary, on Primary's command");
                 startDistributedTx(itemIdForOrder, valueForOrder);
                 if (valueForOrder != 0.0d) {
                     ((DistributedTxParticipant)server.getTransaction()).voteCommit();
@@ -348,7 +351,7 @@ public class InventoryServiceImpl extends InventoryServiceGrpc.InventoryServiceI
         for (String[] data : othersData) {
             String IPAddress = data[0];
             int port = Integer.parseInt(data[1]);
-            callServer(itemIdForOrder, valueForOrder, true, IPAddress, port);
+            callServerForOrder(itemIdForOrder, valueForOrder, true, IPAddress, port);
         }
     }
 
